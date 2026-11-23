@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Foxcore 销售跟踪系统{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}?v=2">
+</head>
+<body>
+  <header class="site-header">
+    <a class="brand" href="{{ url_for('dashboard.index') }}">Foxcore</a>
+    {% if g.user %}
+      <nav class="main-nav" aria-label="主导航">
+        {% if g.user["role"] == "合伙人" %}
+          <a href="{{ url_for('dashboard.index') }}">工作台</a>
+          <a href="{{ url_for('sales.list_sales') }}">销售流水</a>
+          <a href="{{ url_for('settlements.index') }}">佣金核算</a>
+          <a href="{{ url_for('reports.index') }}">销售报表</a>
+          <a href="{{ url_for('rules.index') }}">佣金规则</a>
+          <a href="{{ url_for('master.index') }}">基础数据</a>
+          <a href="{{ url_for('imports.index') }}">历史导入</a>
+        {% elif g.user["role"] == "销售顾问" %}
+          <a href="{{ url_for('sales.new_sale') }}">登记销售</a>
+          <a href="{{ url_for('sales.list_sales') }}">我的流水</a>
+        {% endif %}
+      </nav>
+      <div class="user-area">
+        <span class="user-chip">{{ g.user["username"] }} · {{ g.user["role"] }}</span>
+        <a class="logout-link" href="{{ url_for('auth.logout') }}">退出</a>
+      </div>
+    {% else %}
+      <a class="logout-link" href="{{ url_for('auth.login') }}">登录</a>
+    {% endif %}
+  </header>
+
+  <main class="page-shell">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <div class="flash-stack" role="status">
+          {% for category, message in messages %}
+            <div class="flash flash-{{ category }}">{{ message }}</div>
+          {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>

@@ -1,0 +1,157 @@
+{% extends "base.html" %}
+
+{% block title %}历史销售导入 · Foxcore{% endblock %}
+
+{% block content %}
+  <style>
+    .import-heading { display: flex; justify-content: space-between; gap: 24px; align-items: end; margin-bottom: 24px; }
+    .import-panel { margin-bottom: 20px; padding: 24px; background: var(--surface); border: 1px solid var(--line); border-radius: 16px; box-shadow: 0 18px 50px rgba(31, 41, 51, 0.06); }
+    .import-panel h2 { margin-bottom: 6px; }
+    .import-form { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 14px; align-items: end; margin-top: 20px; }
+    .file-field { display: grid; gap: 7px; min-width: 0; }
+    .file-field label { color: var(--muted); font-size: 12px; font-weight: 800; }
+    .file-field input { width: 100%; min-height: 42px; padding: 8px 10px; color: var(--ink); background: #fff; border: 1px solid var(--line); border-radius: 8px; font: inherit; }
+    .file-field input:focus { outline: 3px solid rgba(20, 108, 90, 0.14); border-color: var(--brand); }
+    .button { display: inline-flex; align-items: center; justify-content: center; min-height: 42px; padding: 9px 16px; color: #fff; background: var(--brand); border: 1px solid var(--brand); border-radius: 8px; cursor: pointer; font: inherit; font-size: 14px; font-weight: 800; }
+    .button:hover { color: #fff; background: var(--brand-dark); border-color: var(--brand-dark); }
+    .button-secondary { color: var(--brand-dark); background: #fff; border-color: var(--line); }
+    .button-secondary:hover { color: var(--brand-dark); background: #edf7f4; border-color: var(--brand); }
+    .import-tools { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; }
+    .import-hint { margin: 10px 0 0; color: var(--muted); font-size: 13px; line-height: 1.6; }
+    .result-summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-top: 18px; }
+    .result-card { padding: 14px; background: var(--surface-soft); border: 1px solid var(--line); border-radius: 10px; }
+    .result-label { display: block; margin-bottom: 5px; color: var(--muted); font-size: 12px; font-weight: 800; }
+    .result-value { color: var(--brand-dark); font-size: 22px; font-weight: 900; font-variant-numeric: tabular-nums; }
+    .table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; }
+    .import-table { width: 100%; min-width: 760px; border-collapse: collapse; }
+    .import-table th, .import-table td { padding: 11px 13px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+    .import-table thead th { color: var(--muted); background: var(--surface-soft); font-size: 12px; letter-spacing: 0.03em; white-space: nowrap; }
+    .import-table tbody tr:last-child td { border-bottom: 0; }
+    .import-table tbody tr:hover { background: #fbfcfd; }
+    .number { font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .status { display: inline-flex; padding: 4px 9px; border-radius: 999px; font-size: 12px; font-weight: 800; white-space: nowrap; }
+    .status-success { color: #08603d; background: #e8f7ef; }
+    .status-partial { color: #8a5200; background: #fff4dc; }
+    .status-failed { color: var(--danger-text); background: var(--danger-bg); }
+    .empty-state { padding: 32px 18px; color: var(--muted); background: var(--surface-soft); border: 1px dashed var(--line); border-radius: 12px; text-align: center; }
+    .error-row-number { width: 100px; font-weight: 800; white-space: nowrap; }
+    @media (max-width: 760px) {
+      .import-heading { align-items: flex-start; flex-direction: column; }
+      .import-panel { padding: 18px; }
+      .import-form { grid-template-columns: 1fr; }
+      .result-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+  </style>
+
+  <section class="import-heading">
+    <div>
+      <p class="eyebrow">D8 · 历史数据导入</p>
+      <h1>历史销售导入</h1>
+      <p class="muted">上传 Excel 另存的 UTF-8 CSV，同一 client_txn_id 的多行会合并为一张销售单。</p>
+    </div>
+  </section>
+
+  <section class="import-panel">
+    <h2>上传 CSV</h2>
+    <p class="muted">仅支持 UTF-8 / UTF-8 BOM 编码的 CSV，文件大小不超过 2MB。</p>
+    <form class="import-form" method="post" action="{{ url_for('imports.index') }}" enctype="multipart/form-data">
+      <div class="file-field">
+        <label for="csv_file">选择 CSV 文件</label>
+        <input id="csv_file" name="csv_file" type="file" accept=".csv" required>
+      </div>
+      <button class="button" type="submit">开始导入</button>
+    </form>
+    <div class="import-tools">
+      <a class="button button-secondary" href="{{ url_for('imports.download_template') }}">下载模板</a>
+      <span class="import-hint">表头：client_txn_id, sale_time, shift_id, product_code, quantity, final_unit_price</span>
+    </div>
+  </section>
+
+  {% if import_result %}
+    <section class="import-panel" data-import-result="{{ import_result.status }}">
+      <h2>本次导入结果</h2>
+      <p class="muted">批次 #{{ import_result.batch_id }} · {{ import_result.file_name }} · {{ import_result.status }}</p>
+      <div class="result-summary">
+        <div class="result-card">
+          <span class="result-label">总行数</span>
+          <strong class="result-value" data-result-row-count="{{ import_result.row_count }}">{{ import_result.row_count }}</strong>
+        </div>
+        <div class="result-card">
+          <span class="result-label">成功</span>
+          <strong class="result-value" data-result-success-count="{{ import_result.success_count }}">{{ import_result.success_count }}</strong>
+        </div>
+        <div class="result-card">
+          <span class="result-label">跳过</span>
+          <strong class="result-value" data-result-skipped-count="{{ import_result.skipped_count }}">{{ import_result.skipped_count }}</strong>
+        </div>
+        <div class="result-card">
+          <span class="result-label">失败</span>
+          <strong class="result-value" data-result-error-count="{{ import_result.error_count }}">{{ import_result.error_count }}</strong>
+        </div>
+      </div>
+    </section>
+  {% endif %}
+
+  {% if import_result and import_errors %}
+    <section class="import-panel" data-error-details>
+      <h2>本次导入错误明细</h2>
+      <p class="muted">最多显示 {{ max_visible_errors }} 条，本次共 {{ import_result.error_count }} 条错误。</p>
+      <div class="table-wrap">
+        <table class="import-table">
+          <thead>
+            <tr>
+              <th>行号</th>
+              <th>原因</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for error in import_errors %}
+              <tr>
+                <td class="error-row-number">第 {{ error.row_number }} 行</td>
+                <td>{{ error.reason }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  {% endif %}
+
+  <section class="import-panel">
+    <h2>最近 5 个导入批次</h2>
+    <p class="muted">成功数不含幂等跳过的行；跳过数记录在批次备注中。</p>
+    {% if recent_batches %}
+      <div class="table-wrap">
+        <table class="import-table">
+          <thead>
+            <tr>
+              <th>文件名</th>
+              <th>导入时间</th>
+              <th>总行数</th>
+              <th>成功</th>
+              <th>跳过</th>
+              <th>失败</th>
+              <th>状态</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for batch in recent_batches %}
+              {% set status_class = 'success' if batch.status == '成功' else ('partial' if batch.status == '部分成功' else 'failed') %}
+              <tr data-batch-id="{{ batch.import_batch_id }}">
+                <td>{{ batch.file_name }}</td>
+                <td class="number">{{ batch.imported_at }}</td>
+                <td class="number">{{ batch.row_count }}</td>
+                <td class="number">{{ batch.success_count }}</td>
+                <td class="number">{{ batch.skipped_count }}</td>
+                <td class="number">{{ batch.error_count }}</td>
+                <td><span class="status status-{{ status_class }}">{{ batch.status }}</span></td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <div class="empty-state">暂无导入批次。</div>
+    {% endif %}
+  </section>
+{% endblock %}

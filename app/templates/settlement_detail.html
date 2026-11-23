@@ -1,0 +1,176 @@
+{% extends "base.html" %}
+
+{% block title %}{{ settlement['settlement_no'] }} · 佣金核算 · Foxcore{% endblock %}
+
+{% block content %}
+  <style>
+    .detail-heading { display: flex; justify-content: space-between; gap: 24px; align-items: end; margin-bottom: 24px; }
+    .heading-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+    .detail-panel { margin-bottom: 20px; padding: 22px; background: var(--surface); border: 1px solid var(--line); border-radius: 16px; box-shadow: 0 18px 50px rgba(31, 41, 51, 0.06); }
+    .detail-panel h2 { margin-bottom: 6px; }
+    .panel-copy { margin: 0 0 18px; color: var(--muted); font-size: 14px; line-height: 1.7; }
+    .meta-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
+    .meta-card { padding: 14px; background: var(--surface-soft); border: 1px solid var(--line); border-radius: 10px; }
+    .meta-label { display: block; margin-bottom: 5px; color: var(--muted); font-size: 12px; font-weight: 800; }
+    .meta-value { font-weight: 800; }
+    .summary-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; margin-top: 18px; }
+    .summary-card { padding: 15px; background: #fbfcfd; border: 1px solid var(--line); border-radius: 10px; }
+    .summary-card strong { display: block; margin-top: 5px; font-size: 20px; font-variant-numeric: tabular-nums; }
+    .summary-card span { color: var(--muted); font-size: 12px; font-weight: 800; }
+    .table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; }
+    .detail-table { width: 100%; min-width: 820px; border-collapse: collapse; }
+    .detail-table th, .detail-table td { padding: 12px 13px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: middle; }
+    .detail-table th { color: var(--muted); background: var(--surface-soft); font-size: 12px; letter-spacing: 0.03em; white-space: nowrap; }
+    .detail-table tbody tr:hover { background: #fbfcfd; }
+    .detail-table tr:last-child td { border-bottom: 0; }
+    .amount { font-variant-numeric: tabular-nums; font-weight: 800; white-space: nowrap; }
+    .badge { display: inline-flex; padding: 4px 9px; border-radius: 999px; font-size: 12px; font-weight: 800; white-space: nowrap; }
+    .badge-draft { color: #8a5a00; background: #fff7e6; border: 1px solid #ffe2a8; }
+    .badge-confirmed { color: var(--brand-dark); background: #e9f8f3; border: 1px solid #afe3d2; }
+    .badge-warning { color: var(--danger-text); background: var(--danger-bg); border: 1px solid #ffccc7; }
+    .button { display: inline-flex; align-items: center; justify-content: center; min-height: 40px; padding: 9px 15px; color: #fff; background: var(--brand); border: 1px solid var(--brand); border-radius: 8px; cursor: pointer; font: inherit; font-size: 14px; font-weight: 800; }
+    .button:hover { color: #fff; background: var(--brand-dark); border-color: var(--brand-dark); }
+    .button-secondary { color: var(--brand-dark); background: #fff; border-color: var(--line); }
+    .button-secondary:hover { color: var(--brand-dark); background: #edf7f4; border-color: var(--brand); }
+    .confirm-box { display: flex; justify-content: space-between; gap: 20px; align-items: center; margin-top: 20px; padding: 16px 18px; background: #fffaf0; border: 1px solid #ffe2a8; border-radius: 12px; }
+    .confirm-box p { margin: 0; color: #7a5200; font-size: 14px; line-height: 1.7; }
+    .confirmed-box { margin-top: 20px; padding: 16px 18px; color: var(--brand-dark); background: #edf9f5; border: 1px solid #afe3d2; border-radius: 12px; line-height: 1.7; }
+    .empty-state { padding: 28px; color: var(--muted); text-align: center; }
+    .muted-cell { color: var(--muted); font-size: 13px; white-space: nowrap; }
+    @media (max-width: 900px) { .meta-grid, .summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .detail-heading { align-items: flex-start; flex-direction: column; } }
+  </style>
+
+  <div class="detail-heading">
+    <div>
+      <p class="eyebrow">佣金核算详情</p>
+      <h1>{{ settlement['settlement_no'] }}</h1>
+      <p class="muted">{{ settlement['period_start'] }} 至 {{ settlement['period_end'] }} · {{ settlement['scope_desc'] }}</p>
+    </div>
+    <div class="heading-actions">
+      {% if settlement['status'] == '草稿' %}
+        <span class="badge badge-draft">草稿</span>
+      {% else %}
+        <span class="badge badge-confirmed">已确认</span>
+      {% endif %}
+      <a class="button button-secondary" href="{{ url_for('settlements.index') }}">返回列表</a>
+    </div>
+  </div>
+
+  <section class="detail-panel">
+    <div class="meta-grid">
+      <div class="meta-card">
+        <span class="meta-label">结算期间</span>
+        <span class="meta-value">{{ settlement['period_start'] }} 至 {{ settlement['period_end'] }}</span>
+      </div>
+      <div class="meta-card">
+        <span class="meta-label">创建时间</span>
+        <span class="meta-value">{{ settlement['created_at'] }}</span>
+      </div>
+      <div class="meta-card">
+        <span class="meta-label">确认人</span>
+        <span class="meta-value">{{ settlement['confirmed_by_username'] or '-' }}</span>
+      </div>
+      <div class="meta-card">
+        <span class="meta-label">确认时间</span>
+        <span class="meta-value">{{ settlement['confirmed_at'] or '-' }}</span>
+      </div>
+    </div>
+
+    <div class="summary-grid">
+      <div class="summary-card"><span>顾问行数</span><strong>{{ totals['line_count'] }}</strong></div>
+      <div class="summary-card"><span>佣金条目</span><strong>{{ totals['entry_count'] }}</strong></div>
+      <div class="summary-card"><span>净销售额（元）</span><strong>{{ totals['net_sales_cents'] | yuan }}</strong></div>
+      <div class="summary-card"><span>佣金合计（元）</span><strong>{{ totals['commission_total_cents'] | yuan }}</strong></div>
+      <div class="summary-card"><span>待处理 / 调整（元）</span><strong>{{ totals['pending_cents'] | yuan }} / {{ totals['adjustment_cents'] | yuan }}</strong></div>
+    </div>
+
+    {% if settlement['status'] == '草稿' %}
+      <div class="confirm-box">
+        <p>确认后将冻结本单金额，并把关联佣金全部标记为“已结算”。确认后不可重复操作。</p>
+        <form method="post" action="{{ url_for('settlements.confirm', settlement_id=settlement['settlement_id']) }}">
+          <button class="button" type="submit">确认结算</button>
+        </form>
+      </div>
+    {% else %}
+      <div class="confirmed-box">
+        本单已由 {{ settlement['confirmed_by_username'] }} 于 {{ settlement['confirmed_at'] }} 确认，金额已冻结。
+      </div>
+    {% endif %}
+  </section>
+
+  <section class="detail-panel">
+    <h2>按销售顾问汇总</h2>
+    <p class="panel-copy">净销售额与佣金均由结算快照生成，不随后续规则修改而变化。</p>
+    {% if lines %}
+      <div class="table-wrap">
+        <table class="detail-table">
+          <thead>
+            <tr>
+              <th>顾问编号</th>
+              <th>销售顾问</th>
+              <th>佣金条目</th>
+              <th>净销售额（元）</th>
+              <th>佣金合计（元）</th>
+              <th>待处理（元）</th>
+              <th>调整（元）</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for line in lines %}
+              <tr>
+                <td>{{ line['emp_code'] }}</td>
+                <td>{{ line['salesperson_name'] }}</td>
+                <td>{{ line['entry_count'] }}</td>
+                <td class="amount">{{ line['net_sales_cents'] | yuan }}</td>
+                <td class="amount">{{ line['commission_total_cents'] | yuan }}</td>
+                <td class="amount">{{ line['pending_cents'] | yuan }}</td>
+                <td class="amount">{{ line['adjustment_cents'] | yuan }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <div class="empty-state">该结算单没有顾问汇总行</div>
+    {% endif %}
+  </section>
+
+  <section class="detail-panel">
+    <h2>异常清单</h2>
+    <p class="panel-copy">期间内仍处于“待计佣”的销售，不计入本次结算金额。</p>
+    {% if exceptions %}
+      <div class="table-wrap">
+        <table class="detail-table">
+          <thead>
+            <tr>
+              <th>销售单</th>
+              <th>销售时间</th>
+              <th>销售顾问</th>
+              <th>活动 / 摊位</th>
+              <th>明细数</th>
+              <th>销售金额（元）</th>
+              <th>状态</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for sale in exceptions %}
+              <tr>
+                <td>S{{ sale['sale_id'] }}</td>
+                <td class="muted-cell">{{ sale['sale_time'] }}</td>
+                <td>{{ sale['emp_code'] }} · {{ sale['salesperson_name'] }}</td>
+                <td>{{ sale['event_name'] }} / {{ sale['booth_code'] }}</td>
+                <td>{{ sale['item_count'] }}</td>
+                <td class="amount">{{ sale['total_cents'] | yuan }}</td>
+                <td><span class="badge badge-warning">{{ sale['status'] }}</span></td>
+                <td><a class="button button-secondary" href="{{ url_for('sales.sale_detail', sale_id=sale['sale_id']) }}">查看销售</a></td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <div class="empty-state">期间内没有待计佣异常</div>
+    {% endif %}
+  </section>
+{% endblock %}

@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+
+{% block title %}{{ title }} · Foxcore{% endblock %}
+
+{% block content %}
+  <section class="page-heading">
+    <p class="eyebrow">MODULE PLACEHOLDER</p>
+    <h1>{{ title }}</h1>
+    <p class="muted">{{ description }}</p>
+  </section>
+
+  <section class="empty-panel">
+    <span class="status-dot" aria-hidden="true"></span>
+    <h2>页面已占位</h2>
+    <p>本阶段仅完成路由、权限和页面骨架，暂不包含业务数据或业务操作。</p>
+  </section>
+{% endblock %}

@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+
+{% block title %}佣金核算 · Foxcore{% endblock %}
+
+{% block content %}
+  <style>
+    .settlements-heading { display: flex; justify-content: space-between; gap: 24px; align-items: end; margin-bottom: 24px; }
+    .settlements-grid { display: grid; grid-template-columns: minmax(280px, 0.75fr) minmax(0, 1.5fr); gap: 20px; align-items: start; }
+    .panel { padding: 22px; background: var(--surface); border: 1px solid var(--line); border-radius: 16px; box-shadow: 0 18px 50px rgba(31, 41, 51, 0.06); }
+    .panel h2 { margin-bottom: 6px; }
+    .panel-copy { margin: 0 0 18px; color: var(--muted); font-size: 14px; line-height: 1.7; }
+    .generate-form { display: grid; gap: 14px; }
+    .field { display: grid; gap: 6px; }
+    .field label { color: var(--muted); font-size: 12px; font-weight: 800; }
+    .field input { width: 100%; min-height: 42px; padding: 9px 10px; color: var(--ink); background: #fff; border: 1px solid var(--line); border-radius: 8px; font: inherit; }
+    .field input:focus { outline: 3px solid rgba(20, 108, 90, 0.14); border-color: var(--brand); }
+    .button { display: inline-flex; align-items: center; justify-content: center; min-height: 40px; padding: 9px 15px; color: #fff; background: var(--brand); border: 1px solid var(--brand); border-radius: 8px; cursor: pointer; font: inherit; font-size: 14px; font-weight: 800; }
+    .button:hover { color: #fff; background: var(--brand-dark); border-color: var(--brand-dark); }
+    .button-secondary { color: var(--brand-dark); background: #fff; border-color: var(--line); }
+    .button-secondary:hover { color: var(--brand-dark); background: #edf7f4; border-color: var(--brand); }
+    .table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; }
+    .settlements-table { width: 100%; min-width: 850px; border-collapse: collapse; }
+    .settlements-table th, .settlements-table td { padding: 12px 13px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: middle; }
+    .settlements-table th { color: var(--muted); background: var(--surface-soft); font-size: 12px; letter-spacing: 0.03em; white-space: nowrap; }
+    .settlements-table tbody tr:hover { background: #fbfcfd; }
+    .settlements-table tr:last-child td { border-bottom: 0; }
+    .settlement-no { color: var(--brand-dark); font-weight: 800; white-space: nowrap; }
+    .amount { font-variant-numeric: tabular-nums; font-weight: 800; white-space: nowrap; }
+    .badge { display: inline-flex; padding: 4px 9px; border-radius: 999px; font-size: 12px; font-weight: 800; white-space: nowrap; }
+    .badge-draft { color: #8a5a00; background: #fff7e6; border: 1px solid #ffe2a8; }
+    .badge-confirmed { color: var(--brand-dark); background: #e9f8f3; border: 1px solid #afe3d2; }
+    .muted-cell { color: var(--muted); font-size: 13px; white-space: nowrap; }
+    .empty-state { padding: 34px; color: var(--muted); text-align: center; }
+    @media (max-width: 920px) { .settlements-grid { grid-template-columns: 1fr; } }
+  </style>
+
+  <div class="settlements-heading">
+    <div>
+      <p class="eyebrow">D6 · 佣金核算</p>
+      <h1>佣金核算</h1>
+      <p class="muted">按销售期间归集待结算佣金，生成顾问汇总草稿并完成确认冻结。</p>
+    </div>
+  </div>
+
+  <div class="settlements-grid">
+    <section class="panel">
+      <h2>生成核算</h2>
+      <p class="panel-copy">期间内含未作废销售的待结算佣金。系统全局只允许一张草稿，需确认后才能生成下一张。</p>
+      <form class="generate-form" method="post" action="{{ url_for('settlements.generate') }}">
+        <div class="field">
+          <label for="period_start">期间开始日期</label>
+          <input id="period_start" name="period_start" type="date" value="{{ form_values['period_start'] }}" required>
+        </div>
+        <div class="field">
+          <label for="period_end">期间结束日期</label>
+          <input id="period_end" name="period_end" type="date" value="{{ form_values['period_end'] }}" required>
+        </div>
+        <button class="button" type="submit">生成结算草稿</button>
+      </form>
+    </section>
+
+    <section class="panel">
+      <h2>结算单列表</h2>
+      <p class="panel-copy">佣金合计为按顾问汇总的结算行合计。</p>
+      {% if settlements %}
+        <div class="table-wrap">
+          <table class="settlements-table">
+            <thead>
+              <tr>
+                <th>单号</th>
+                <th>期间</th>
+                <th>状态</th>
+                <th>确认人 / 时间</th>
+                <th>行数</th>
+                <th>佣金合计（元）</th>
+                <th>操作</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for settlement in settlements %}
+                <tr>
+                  <td class="settlement-no">{{ settlement['settlement_no'] }}</td>
+                  <td class="muted-cell">{{ settlement['period_start'] }} 至 {{ settlement['period_end'] }}</td>
+                  <td>
+                    {% if settlement['status'] == '草稿' %}
+                      <span class="badge badge-draft">草稿</span>
+                    {% else %}
+                      <span class="badge badge-confirmed">已确认</span>
+                    {% endif %}
+                  </td>
+                  <td class="muted-cell">
+                    {% if settlement['status'] == '已确认' %}
+                      {{ settlement['confirmed_by_username'] }}<br>{{ settlement['confirmed_at'] }}
+                    {% else %}
+                      -
+                    {% endif %}
+                  </td>
+                  <td>{{ settlement['line_count'] }}</td>
+                  <td class="amount">{{ settlement['commission_total_cents'] | yuan }}</td>
+                  <td><a class="button button-secondary" href="{{ url_for('settlements.detail', settlement_id=settlement['settlement_id']) }}">查看</a></td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <div class="empty-state">暂无结算单</div>
+      {% endif %}
+    </section>
+  </div>
+{% endblock %}

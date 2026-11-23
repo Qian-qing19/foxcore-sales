@@ -1,0 +1,498 @@
+{% extends "base.html" %}
+
+{% block title %}基础数据 · Foxcore{% endblock %}
+
+{% block content %}
+  <style>
+    .master-heading { display: flex; justify-content: space-between; gap: 24px; align-items: end; }
+    .master-tabs { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 22px; }
+    .master-tab { padding: 10px 16px; color: var(--muted); background: #fff; border: 1px solid var(--line); border-radius: 999px; font-weight: 700; }
+    .master-tab:hover { color: var(--brand-dark); border-color: var(--brand); }
+    .master-tab.active { color: #fff; background: var(--brand); border-color: var(--brand); }
+    .master-panel { margin-bottom: 24px; padding: 26px; background: var(--surface); border: 1px solid var(--line); border-radius: 16px; box-shadow: 0 18px 50px rgba(31, 41, 51, 0.06); }
+    .panel-heading { display: flex; justify-content: space-between; gap: 16px; align-items: baseline; margin-bottom: 18px; }
+    .panel-heading p { margin: 0; }
+    .form-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+    .field { display: grid; gap: 7px; }
+    .field label { color: #344054; font-size: 14px; font-weight: 700; }
+    .field input, .field select { width: 100%; min-height: 42px; padding: 9px 11px; color: var(--ink); background: #fff; border: 1px solid var(--line); border-radius: 8px; font: inherit; }
+    .field input:focus, .field select:focus { outline: 3px solid rgba(20, 108, 90, 0.14); border-color: var(--brand); }
+    .field-hint { color: var(--muted); font-size: 12px; }
+    .form-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 18px; }
+    .button { display: inline-flex; align-items: center; justify-content: center; min-height: 38px; padding: 8px 14px; color: #fff; background: var(--brand); border: 1px solid var(--brand); border-radius: 8px; cursor: pointer; font: inherit; font-size: 14px; font-weight: 700; }
+    .button:hover { color: #fff; background: var(--brand-dark); border-color: var(--brand-dark); }
+    .button-secondary { color: var(--brand-dark); background: #fff; border-color: var(--line); }
+    .button-secondary:hover { color: var(--brand-dark); background: #edf7f4; border-color: var(--brand); }
+    .button-warning { color: #7a4d00; background: #fff8e8; border-color: #f2cf88; }
+    .button-warning:hover { color: #603c00; background: #ffefc5; border-color: #dba93d; }
+    .table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; }
+    .master-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    .master-table th, .master-table td { padding: 12px 14px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: middle; white-space: nowrap; }
+    .master-table th { color: var(--muted); background: var(--surface-soft); font-size: 12px; letter-spacing: 0.04em; }
+    .master-table tr:last-child td { border-bottom: 0; }
+    .table-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+    .inline-form { display: inline; margin: 0; }
+    .badge { display: inline-block; padding: 4px 9px; border-radius: 999px; font-size: 12px; font-weight: 800; }
+    .badge-on { color: #075e46; background: #e8f7f1; }
+    .badge-off { color: #8a4b08; background: #fff2df; }
+    .empty-state { padding: 22px; color: var(--muted); background: var(--surface-soft); border-radius: 10px; text-align: center; }
+    .phase-note { padding: 34px; background: var(--surface); border: 1px dashed var(--line); border-radius: 16px; }
+    @media (max-width: 900px) {
+      .master-heading { align-items: flex-start; flex-direction: column; }
+      .form-grid { grid-template-columns: 1fr 1fr; }
+    }
+    @media (max-width: 620px) {
+      .form-grid { grid-template-columns: 1fr; }
+      .master-panel { padding: 20px 16px; }
+    }
+  </style>
+
+  <section class="page-heading master-heading">
+    <div>
+      <p class="eyebrow">MASTER DATA</p>
+      <h1>基础数据</h1>
+      <p class="muted">维护产品、活动、摊位、销售顾问与班次。所有变更均通过 POST 提交。</p>
+    </div>
+  </section>
+
+  <nav class="master-tabs" aria-label="基础数据类型">
+    {% for tab_key, tab_label in tabs %}
+      <a class="master-tab {% if tab == tab_key %}active{% endif %}" href="{{ url_for('master.index', tab=tab_key) }}">{{ tab_label }}</a>
+    {% endfor %}
+  </nav>
+
+  {% if tab == "product" %}
+    <section class="master-panel">
+      <div class="panel-heading">
+        <div>
+          <h2>{% if edit_record %}编辑产品{% else %}新增产品{% endif %}</h2>
+          <p class="muted">最低售价按元录入，系统以分精确存储。</p>
+        </div>
+        {% if edit_record %}
+          <a class="button button-secondary" href="{{ url_for('master.index', tab='product') }}">取消编辑</a>
+        {% endif %}
+      </div>
+      <form method="post" action="{{ url_for('master.index', tab='product') }}">
+        <input type="hidden" name="tab" value="product">
+        <input type="hidden" name="action" value="save">
+        {% if edit_record %}<input type="hidden" name="record_id" value="{{ edit_record['product_id'] }}">{% endif %}
+        <div class="form-grid">
+          <div class="field">
+            <label for="product_code">产品编码</label>
+            <input id="product_code" name="product_code" value="{{ form_values['product_code'] }}" required maxlength="60">
+          </div>
+          <div class="field">
+            <label for="product_name">产品名称</label>
+            <input id="product_name" name="name" value="{{ form_values['name'] }}" required maxlength="120">
+          </div>
+          <div class="field">
+            <label for="product_category">分类</label>
+            <input id="product_category" name="category" value="{{ form_values['category'] }}" maxlength="80" placeholder="可选">
+          </div>
+          <div class="field">
+            <label for="product_price">最低售价（元）</label>
+            <input id="product_price" name="min_price" value="{{ form_values['min_price'] }}" required inputmode="decimal" placeholder="19.90">
+          </div>
+          <div class="field">
+            <label for="product_status">状态</label>
+            <select id="product_status" name="status">
+              {% for status in product_statuses %}
+                <option value="{{ status }}" {% if form_values['status'] == status %}selected{% endif %}>{{ status }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+        <div class="form-actions">
+          <button class="button" type="submit">{% if edit_record %}保存修改{% else %}新增产品{% endif %}</button>
+        </div>
+      </form>
+    </section>
+
+    <section class="master-panel">
+      <div class="panel-heading">
+        <h2>产品列表</h2>
+        <p class="muted">共 {{ records | length }} 条</p>
+      </div>
+      {% if records %}
+        <div class="table-wrap">
+          <table class="master-table">
+            <thead>
+              <tr>
+                <th>编码</th><th>名称</th><th>分类</th><th>最低售价</th><th>状态</th><th>操作</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in records %}
+                <tr>
+                  <td>{{ row['product_code'] }}</td>
+                  <td>{{ row['name'] }}</td>
+                  <td>{{ row['category'] if row['category'] else '—' }}</td>
+                  <td>¥{{ row['min_price_cents'] | yuan }}</td>
+                  <td><span class="badge {{ 'badge-off' if row['status'] == '停用' else 'badge-on' }}">{{ row['status'] }}</span></td>
+                  <td>
+                    <div class="table-actions">
+                      <a class="button button-secondary" href="{{ url_for('master.index', tab='product', edit=row['product_id']) }}">编辑</a>
+                      <form class="inline-form" method="post" action="{{ url_for('master.index', tab='product') }}">
+                        <input type="hidden" name="tab" value="product">
+                        <input type="hidden" name="action" value="toggle">
+                        <input type="hidden" name="record_id" value="{{ row['product_id'] }}">
+                        <button class="button button-warning" type="submit">{{ '启用' if row['status'] == '停用' else '停用' }}</button>
+                      </form>
+                    </div>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <div class="empty-state">暂无产品</div>
+      {% endif %}
+    </section>
+
+  {% elif tab == "salesperson" %}
+    <section class="master-panel">
+      <div class="panel-heading">
+        <div>
+          <h2>{% if edit_record %}编辑销售顾问{% else %}新增销售顾问{% endif %}</h2>
+          <p class="muted">新增时自动记录当天为入职日期；编辑不会覆盖原入职日期。</p>
+        </div>
+        {% if edit_record %}
+          <a class="button button-secondary" href="{{ url_for('master.index', tab='salesperson') }}">取消编辑</a>
+        {% endif %}
+      </div>
+      <form method="post" action="{{ url_for('master.index', tab='salesperson') }}">
+        <input type="hidden" name="tab" value="salesperson">
+        <input type="hidden" name="action" value="save">
+        {% if edit_record %}<input type="hidden" name="record_id" value="{{ edit_record['salesperson_id'] }}">{% endif %}
+        <div class="form-grid">
+          <div class="field">
+            <label for="emp_code">员工编码</label>
+            <input id="emp_code" name="emp_code" value="{{ form_values['emp_code'] }}" required maxlength="60">
+          </div>
+          <div class="field">
+            <label for="salesperson_name">姓名</label>
+            <input id="salesperson_name" name="name" value="{{ form_values['name'] }}" required maxlength="80">
+          </div>
+          <div class="field">
+            <label for="phone">联系电话</label>
+            <input id="phone" name="phone" value="{{ form_values['phone'] }}" maxlength="40" placeholder="可选">
+          </div>
+          <div class="field">
+            <label for="salesperson_status">状态</label>
+            <select id="salesperson_status" name="status">
+              {% for status in salesperson_statuses %}
+                <option value="{{ status }}" {% if form_values['status'] == status %}selected{% endif %}>{{ status }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+        <div class="form-actions">
+          <button class="button" type="submit">{% if edit_record %}保存修改{% else %}新增销售顾问{% endif %}</button>
+        </div>
+      </form>
+    </section>
+
+    <section class="master-panel">
+      <div class="panel-heading">
+        <h2>销售顾问列表</h2>
+        <p class="muted">共 {{ records | length }} 条</p>
+      </div>
+      {% if records %}
+        <div class="table-wrap">
+          <table class="master-table">
+            <thead>
+              <tr>
+                <th>员工编码</th><th>姓名</th><th>电话</th><th>入职日期</th><th>状态</th><th>操作</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in records %}
+                <tr>
+                  <td>{{ row['emp_code'] }}</td>
+                  <td>{{ row['name'] }}</td>
+                  <td>{{ row['phone'] if row['phone'] else '—' }}</td>
+                  <td>{{ row['hired_at'] }}</td>
+                  <td><span class="badge {{ 'badge-off' if row['status'] == '停用' else 'badge-on' }}">{{ row['status'] }}</span></td>
+                  <td>
+                    <div class="table-actions">
+                      <a class="button button-secondary" href="{{ url_for('master.index', tab='salesperson', edit=row['salesperson_id']) }}">编辑</a>
+                      <form class="inline-form" method="post" action="{{ url_for('master.index', tab='salesperson') }}">
+                        <input type="hidden" name="tab" value="salesperson">
+                        <input type="hidden" name="action" value="toggle">
+                        <input type="hidden" name="record_id" value="{{ row['salesperson_id'] }}">
+                        <button class="button button-warning" type="submit">{{ '启用' if row['status'] == '停用' else '停用' }}</button>
+                      </form>
+                    </div>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <div class="empty-state">暂无销售顾问</div>
+      {% endif %}
+    </section>
+
+  {% elif tab == "event" %}
+    <section class="master-panel">
+      <div class="panel-heading">
+        <div>
+          <h2>{% if edit_record %}编辑活动{% else %}新增活动{% endif %}</h2>
+          <p class="muted">活动日期只到天；活动不设停用状态，仅支持编辑。</p>
+        </div>
+        {% if edit_record %}
+          <a class="button button-secondary" href="{{ url_for('master.index', tab='event') }}">取消编辑</a>
+        {% endif %}
+      </div>
+      <form method="post" action="{{ url_for('master.index', tab='event') }}">
+        <input type="hidden" name="tab" value="event">
+        <input type="hidden" name="action" value="save">
+        {% if edit_record %}<input type="hidden" name="record_id" value="{{ edit_record['event_id'] }}">{% endif %}
+        <div class="form-grid">
+          <div class="field">
+            <label for="event_code">活动编码</label>
+            <input id="event_code" name="event_code" value="{{ form_values['event_code'] }}" required maxlength="60">
+          </div>
+          <div class="field">
+            <label for="event_name">活动名称</label>
+            <input id="event_name" name="event_name" value="{{ form_values['event_name'] }}" required maxlength="120">
+          </div>
+          <div class="field">
+            <label for="event_type">活动类型</label>
+            <input id="event_type" name="event_type" value="{{ form_values['event_type'] }}" required maxlength="60" placeholder="如：音乐节">
+          </div>
+          <div class="field">
+            <label for="event_venue">场地</label>
+            <select id="event_venue" name="venue_id" required>
+              <option value="">请选择场地</option>
+              {% for venue in options.get('venues', []) %}
+                <option value="{{ venue['venue_id'] }}" {% if form_values['venue_id'] == (venue['venue_id'] | string) %}selected{% endif %}>{{ venue['name'] }}（{{ venue['venue_code'] }}）</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="field">
+            <label for="event_start">开始日期</label>
+            <input id="event_start" type="date" name="start_date" value="{{ form_values['start_date'] }}" required>
+          </div>
+          <div class="field">
+            <label for="event_end">结束日期</label>
+            <input id="event_end" type="date" name="end_date" value="{{ form_values['end_date'] }}" required>
+          </div>
+          <div class="field">
+            <label for="event_description">说明</label>
+            <input id="event_description" name="description" value="{{ form_values['description'] }}" maxlength="300" placeholder="可选">
+          </div>
+        </div>
+        <div class="form-actions">
+          <button class="button" type="submit">{% if edit_record %}保存修改{% else %}新增活动{% endif %}</button>
+        </div>
+      </form>
+    </section>
+
+    <section class="master-panel">
+      <div class="panel-heading">
+        <h2>活动列表</h2>
+        <p class="muted">共 {{ records | length }} 条</p>
+      </div>
+      {% if records %}
+        <div class="table-wrap">
+          <table class="master-table">
+            <thead>
+              <tr><th>编码</th><th>活动名称</th><th>类型</th><th>场地</th><th>日期</th><th>说明</th><th>操作</th></tr>
+            </thead>
+            <tbody>
+              {% for row in records %}
+                <tr>
+                  <td>{{ row['event_code'] }}</td>
+                  <td>{{ row['event_name'] }}</td>
+                  <td>{{ row['event_type'] }}</td>
+                  <td>{{ row['venue_name'] }}</td>
+                  <td>{{ row['start_date'] }} 至 {{ row['end_date'] }}</td>
+                  <td>{{ row['description'] if row['description'] else '—' }}</td>
+                  <td><a class="button button-secondary" href="{{ url_for('master.index', tab='event', edit=row['event_id']) }}">编辑</a></td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <div class="empty-state">暂无活动</div>
+      {% endif %}
+    </section>
+
+  {% elif tab == "booth" %}
+    <section class="master-panel">
+      <div class="panel-heading">
+        <div>
+          <h2>{% if edit_record %}编辑摊位{% else %}新增摊位{% endif %}</h2>
+          <p class="muted">同一活动下摊位编号不可重复；停用只改变状态，不删除记录。</p>
+        </div>
+        {% if edit_record %}
+          <a class="button button-secondary" href="{{ url_for('master.index', tab='booth') }}">取消编辑</a>
+        {% endif %}
+      </div>
+      <form method="post" action="{{ url_for('master.index', tab='booth') }}">
+        <input type="hidden" name="tab" value="booth">
+        <input type="hidden" name="action" value="save">
+        {% if edit_record %}<input type="hidden" name="record_id" value="{{ edit_record['booth_id'] }}">{% endif %}
+        <div class="form-grid">
+          <div class="field">
+            <label for="booth_event">活动</label>
+            <select id="booth_event" name="event_id" required>
+              <option value="">请选择活动</option>
+              {% for event in options.get('events', []) %}
+                <option value="{{ event['event_id'] }}" {% if form_values['event_id'] == (event['event_id'] | string) %}selected{% endif %}>{{ event['event_name'] }}（{{ event['event_code'] }}）</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="field">
+            <label for="booth_code">摊位编号</label>
+            <input id="booth_code" name="booth_code" value="{{ form_values['booth_code'] }}" required maxlength="40">
+          </div>
+          <div class="field">
+            <label for="booth_location">位置</label>
+            <input id="booth_location" name="location" value="{{ form_values['location'] }}" maxlength="120" placeholder="可选">
+          </div>
+          <div class="field">
+            <label for="booth_status">状态</label>
+            <select id="booth_status" name="status">
+              {% for status in booth_statuses %}
+                <option value="{{ status }}" {% if form_values['status'] == status %}selected{% endif %}>{{ status }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+        <div class="form-actions">
+          <button class="button" type="submit">{% if edit_record %}保存修改{% else %}新增摊位{% endif %}</button>
+        </div>
+      </form>
+    </section>
+
+    <section class="master-panel">
+      <div class="panel-heading">
+        <h2>摊位列表</h2>
+        <p class="muted">共 {{ records | length }} 条</p>
+      </div>
+      {% if records %}
+        <div class="table-wrap">
+          <table class="master-table">
+            <thead>
+              <tr><th>活动</th><th>摊位编号</th><th>位置</th><th>状态</th><th>操作</th></tr>
+            </thead>
+            <tbody>
+              {% for row in records %}
+                <tr>
+                  <td>{{ row['event_name'] }}</td>
+                  <td>{{ row['booth_code'] }}</td>
+                  <td>{{ row['location'] if row['location'] else '—' }}</td>
+                  <td><span class="badge {{ 'badge-off' if row['status'] == '停用' else 'badge-on' }}">{{ row['status'] }}</span></td>
+                  <td>
+                    <div class="table-actions">
+                      <a class="button button-secondary" href="{{ url_for('master.index', tab='booth', edit=row['booth_id']) }}">编辑</a>
+                      <form class="inline-form" method="post" action="{{ url_for('master.index', tab='booth') }}">
+                        <input type="hidden" name="tab" value="booth">
+                        <input type="hidden" name="action" value="toggle">
+                        <input type="hidden" name="record_id" value="{{ row['booth_id'] }}">
+                        <button class="button button-warning" type="submit">{{ '启用' if row['status'] == '停用' else '停用' }}</button>
+                      </form>
+                    </div>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <div class="empty-state">暂无摊位</div>
+      {% endif %}
+    </section>
+
+  {% elif tab == "shift" %}
+    <section class="master-panel">
+      <div class="panel-heading">
+        <div>
+          <h2>{% if edit_record %}编辑班次{% else %}新增班次{% endif %}</h2>
+          <p class="muted">结束时间必须晚于开始时间；班次状态在编辑表单中选择，不提供停用按钮。</p>
+        </div>
+        {% if edit_record %}
+          <a class="button button-secondary" href="{{ url_for('master.index', tab='shift') }}">取消编辑</a>
+        {% endif %}
+      </div>
+      <form method="post" action="{{ url_for('master.index', tab='shift') }}">
+        <input type="hidden" name="tab" value="shift">
+        <input type="hidden" name="action" value="save">
+        {% if edit_record %}<input type="hidden" name="record_id" value="{{ edit_record['shift_id'] }}">{% endif %}
+        <div class="form-grid">
+          <div class="field">
+            <label for="shift_salesperson">销售顾问</label>
+            <select id="shift_salesperson" name="salesperson_id" required>
+              <option value="">请选择销售顾问</option>
+              {% for salesperson in options.get('salespersons', []) %}
+                <option value="{{ salesperson['salesperson_id'] }}" {% if form_values['salesperson_id'] == (salesperson['salesperson_id'] | string) %}selected{% endif %}>{{ salesperson['name'] }}（{{ salesperson['emp_code'] }}，{{ salesperson['status'] }}）</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="field">
+            <label for="shift_booth">摊位</label>
+            <select id="shift_booth" name="booth_id" required>
+              <option value="">请选择摊位</option>
+              {% for booth in options.get('booths', []) %}
+                <option value="{{ booth['booth_id'] }}" {% if form_values['booth_id'] == (booth['booth_id'] | string) %}selected{% endif %}>{{ booth['booth_code'] }}（{{ booth['event_name'] }}，{{ booth['status'] }}）</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="field">
+            <label for="shift_start">开始时间</label>
+            <input id="shift_start" type="datetime-local" name="start_time" value="{{ form_values['start_time'] }}" required>
+          </div>
+          <div class="field">
+            <label for="shift_end">结束时间</label>
+            <input id="shift_end" type="datetime-local" name="end_time" value="{{ form_values['end_time'] }}" required>
+          </div>
+          <div class="field">
+            <label for="shift_status">状态</label>
+            <select id="shift_status" name="status">
+              {% for status in shift_statuses %}
+                <option value="{{ status }}" {% if form_values['status'] == status %}selected{% endif %}>{{ status }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+        <div class="form-actions">
+          <button class="button" type="submit">{% if edit_record %}保存修改{% else %}新增班次{% endif %}</button>
+        </div>
+      </form>
+    </section>
+
+    <section class="master-panel">
+      <div class="panel-heading">
+        <h2>班次列表</h2>
+        <p class="muted">共 {{ records | length }} 条</p>
+      </div>
+      {% if records %}
+        <div class="table-wrap">
+          <table class="master-table">
+            <thead>
+              <tr><th>顾问 · 摊位（活动）</th><th>开始时间</th><th>结束时间</th><th>状态</th><th>操作</th></tr>
+            </thead>
+            <tbody>
+              {% for row in records %}
+                <tr>
+                  <td>{{ row['salesperson_name'] }} · {{ row['booth_code'] }}（{{ row['event_name'] }}）</td>
+                  <td>{{ row['start_time'] }}</td>
+                  <td>{{ row['end_time'] }}</td>
+                  <td><span class="badge {{ 'badge-off' if row['status'] in ('已结束', '已结算') else 'badge-on' }}">{{ row['status'] }}</span></td>
+                  <td><a class="button button-secondary" href="{{ url_for('master.index', tab='shift', edit=row['shift_id']) }}">编辑</a></td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <div class="empty-state">暂无班次</div>
+      {% endif %}
+    </section>
+  {% endif %}
+{% endblock %}

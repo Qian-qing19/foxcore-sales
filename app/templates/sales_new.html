@@ -1,0 +1,290 @@
+{% extends "base.html" %}
+
+{% block title %}登记销售 · Foxcore{% endblock %}
+
+{% block content %}
+  <style>
+    .sale-heading { display: flex; justify-content: space-between; gap: 24px; align-items: end; margin-bottom: 24px; }
+    .sale-panel { padding: 26px; background: var(--surface); border: 1px solid var(--line); border-radius: 16px; box-shadow: 0 18px 50px rgba(31, 41, 51, 0.06); }
+    .shift-card { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; margin-bottom: 24px; padding: 18px; background: #edf7f4; border: 1px solid #bfe7d8; border-radius: 12px; }
+    .shift-item { min-width: 0; }
+    .shift-label { display: block; margin-bottom: 5px; color: var(--muted); font-size: 12px; font-weight: 700; }
+    .shift-value { display: block; overflow-wrap: anywhere; font-size: 15px; font-weight: 800; }
+    .notice { margin-bottom: 22px; padding: 14px 16px; border-radius: 10px; line-height: 1.7; }
+    .notice-warning { color: #7a4d00; background: #fff8e8; border: 1px solid #f2cf88; }
+    .notice-info { color: #075e46; background: #e8f7f1; border: 1px solid #bfe7d8; }
+    .lines-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; }
+    .sale-lines { width: 100%; min-width: 820px; border-collapse: collapse; }
+    .sale-lines th, .sale-lines td { padding: 12px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+    .sale-lines th { color: var(--muted); background: var(--surface-soft); font-size: 12px; letter-spacing: 0.04em; }
+    .sale-lines tr:last-child td { border-bottom: 0; }
+    .sale-lines input, .sale-lines select { width: 100%; min-height: 42px; padding: 9px 10px; color: var(--ink); background: #fff; border: 1px solid var(--line); border-radius: 8px; font: inherit; }
+    .sale-lines input:focus, .sale-lines select:focus { outline: 3px solid rgba(20, 108, 90, 0.14); border-color: var(--brand); }
+    .sale-lines input:disabled, .sale-lines select:disabled { background: #f7f8fa; cursor: not-allowed; }
+    .product-cell { min-width: 290px; }
+    .quantity-cell { width: 110px; }
+    .price-cell { width: 155px; }
+    .amount-cell { width: 135px; color: var(--brand-dark); font-weight: 800; white-space: nowrap; }
+    .line-hint { display: block; min-height: 17px; margin-top: 5px; color: var(--muted); font-size: 12px; }
+    .button { display: inline-flex; align-items: center; justify-content: center; min-height: 40px; padding: 9px 15px; color: #fff; background: var(--brand); border: 1px solid var(--brand); border-radius: 8px; cursor: pointer; font: inherit; font-size: 14px; font-weight: 800; }
+    .button:hover:not(:disabled) { background: var(--brand-dark); border-color: var(--brand-dark); }
+    .button:disabled { color: #98a2b3; background: #eaecf0; border-color: #d0d5dd; cursor: not-allowed; }
+    .button-secondary { color: var(--brand-dark); background: #fff; border-color: var(--line); }
+    .button-secondary:hover:not(:disabled) { color: var(--brand-dark); background: #edf7f4; border-color: var(--brand); }
+    .button-danger { color: #a8071a; background: #fff; border-color: #ffccc7; }
+    .button-danger:hover:not(:disabled) { color: #820014; background: #fff1f0; border-color: #ff7875; }
+    .line-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
+    .form-footer { display: flex; justify-content: space-between; gap: 20px; align-items: center; margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--line); }
+    .total-label { color: var(--muted); font-size: 14px; font-weight: 700; }
+    .total-amount { color: var(--brand-dark); font-size: 28px; font-weight: 900; letter-spacing: 0.02em; }
+    @media (max-width: 900px) {
+      .sale-heading { align-items: flex-start; flex-direction: column; }
+      .shift-card { grid-template-columns: 1fr 1fr; }
+      .form-footer { align-items: flex-start; flex-direction: column; }
+    }
+    @media (max-width: 560px) {
+      .sale-panel { padding: 20px 16px; }
+      .shift-card { grid-template-columns: 1fr; }
+      .line-actions .button { flex: 1; }
+    }
+  </style>
+
+  <section class="sale-heading">
+    <div>
+      <p class="eyebrow">NEW SALE</p>
+      <h1>登记销售</h1>
+      <p class="muted">按当前班次登记商品、数量和最终成交单价。本阶段保存后状态为“待计佣”。</p>
+    </div>
+  </section>
+
+  <section class="sale-panel">
+    {% if current_shift %}
+      <div class="shift-card" aria-label="当前班次">
+        <div class="shift-item">
+          <span class="shift-label">活动</span>
+          <span class="shift-value">{{ current_shift['event_name'] }}</span>
+        </div>
+        <div class="shift-item">
+          <span class="shift-label">摊位编号</span>
+          <span class="shift-value">{{ current_shift['booth_code'] }}</span>
+        </div>
+        <div class="shift-item">
+          <span class="shift-label">开始时间</span>
+          <span class="shift-value">{{ current_shift['start_time'] }}</span>
+        </div>
+        <div class="shift-item">
+          <span class="shift-label">结束时间</span>
+          <span class="shift-value">{{ current_shift['end_time'] }}</span>
+        </div>
+      </div>
+    {% else %}
+      <div class="notice notice-warning" role="alert">{{ no_active_shift_message }}</div>
+    {% endif %}
+
+    {% if current_shift and not products %}
+      <div class="notice notice-warning" role="alert">当前没有在售产品，请先在基础数据里添加或联系合伙人。</div>
+    {% endif %}
+
+    <form id="sale-form" method="post" action="{{ url_for('sales.new_sale') }}">
+      <input type="hidden" name="shift_id" value="{{ form_values['shift_id'] }}">
+      <input type="hidden" name="client_txn_id" value="{{ form_values['client_txn_id'] }}">
+
+      <fieldset {% if not can_submit %}disabled{% endif %} style="min-width: 0; margin: 0; padding: 0; border: 0;">
+        <div class="lines-wrap">
+          <table class="sale-lines">
+            <thead>
+              <tr>
+                <th>产品</th>
+                <th>数量</th>
+                <th>最终单价（元）</th>
+                <th>行金额（元）</th>
+                <th>操作</th>
+              </tr>
+            </thead>
+            <tbody id="sale-lines">
+              {% for line in form_values['lines'] %}
+                {% set row_number = loop.index %}
+                <tr class="sale-line">
+                  <td class="product-cell">
+                    <select name="product_id" class="product-select" aria-label="第 {{ row_number }} 行产品">
+                      <option value="">请选择产品</option>
+                      {% for product in products %}
+                        <option value="{{ product['product_id'] }}" data-min="{{ product['min_price_yuan'] }}" {% if line['product_id'] == (product['product_id'] | string) %}selected{% endif %}>{{ product['product_code'] }} {{ product['name'] }}</option>
+                      {% endfor %}
+                    </select>
+                    <span class="line-hint">选择产品后显示最低售价</span>
+                  </td>
+                  <td class="quantity-cell">
+                    <input name="quantity" class="quantity-input" type="text" inputmode="numeric" pattern="[0-9]+" value="{{ line['quantity'] }}" aria-label="第 {{ row_number }} 行数量" placeholder="正整数">
+                  </td>
+                  <td class="price-cell">
+                    <input name="final_unit_price" class="price-input" type="text" inputmode="decimal" value="{{ line['final_unit_price'] }}" aria-label="第 {{ row_number }} 行最终单价" placeholder="例如 19.90">
+                  </td>
+                  <td class="amount-cell" data-line-total>—</td>
+                  <td>
+                    <button class="button button-danger remove-line" type="button">删除</button>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+
+        <div class="line-actions">
+          <button id="add-line" class="button button-secondary" type="button" {% if not can_submit %}disabled{% endif %}>增加明细行</button>
+        </div>
+      </fieldset>
+
+      <div class="form-footer">
+        <div>
+          <span class="total-label">本单合计</span>
+          <div class="total-amount" id="sale-total" aria-live="polite">¥ 0.00</div>
+        </div>
+        <button class="button" id="submit-sale" type="submit" {% if not can_submit %}disabled{% endif %}>登记销售</button>
+      </div>
+    </form>
+  </section>
+
+  <template id="sale-line-template">
+    <tr class="sale-line">
+      <td class="product-cell">
+        <select name="product_id" class="product-select" aria-label="产品">
+          <option value="">请选择产品</option>
+          {% for product in products %}
+            <option value="{{ product['product_id'] }}" data-min="{{ product['min_price_yuan'] }}">{{ product['product_code'] }} {{ product['name'] }}</option>
+          {% endfor %}
+        </select>
+        <span class="line-hint">选择产品后显示最低售价</span>
+      </td>
+      <td class="quantity-cell">
+        <input name="quantity" class="quantity-input" type="text" inputmode="numeric" pattern="[0-9]+" value="1" aria-label="数量" placeholder="正整数">
+      </td>
+      <td class="price-cell">
+        <input name="final_unit_price" class="price-input" type="text" inputmode="decimal" aria-label="最终单价" placeholder="例如 19.90">
+      </td>
+      <td class="amount-cell" data-line-total>—</td>
+      <td>
+        <button class="button button-danger remove-line" type="button">删除</button>
+      </td>
+    </tr>
+  </template>
+
+  <script>
+    (() => {
+      const linesBody = document.getElementById("sale-lines");
+      const lineTemplate = document.getElementById("sale-line-template");
+      const addLineButton = document.getElementById("add-line");
+      const totalDisplay = document.getElementById("sale-total");
+
+      function parseQuantity(value) {
+        const text = String(value || "").trim();
+        if (!/^[0-9]+$/.test(text)) {
+          return null;
+        }
+        const quantity = BigInt(text);
+        return quantity > 0n ? quantity : null;
+      }
+
+      function parseYuanToCents(value) {
+        const text = String(value || "").trim();
+        const match = text.match(/^([0-9]+)(?:\.([0-9]{1,2}))?$/);
+        if (!match) {
+          return null;
+        }
+        const fraction = (match[2] || "").padEnd(2, "0");
+        return BigInt(match[1]) * 100n + BigInt(fraction || "0");
+      }
+
+      function formatCents(cents) {
+        const yuan = cents / 100n;
+        const fraction = String(cents % 100n).padStart(2, "0");
+        return `${yuan}.${fraction}`;
+      }
+
+      function refreshLine(row) {
+        const quantity = parseQuantity(row.querySelector(".quantity-input").value);
+        const unitCents = parseYuanToCents(row.querySelector(".price-input").value);
+        const amountCell = row.querySelector("[data-line-total]");
+        if (quantity === null || unitCents === null) {
+          amountCell.textContent = "—";
+          return null;
+        }
+        const lineCents = quantity * unitCents;
+        amountCell.textContent = `¥ ${formatCents(lineCents)}`;
+        return lineCents;
+      }
+
+      function refreshTotal() {
+        let totalCents = 0n;
+        linesBody.querySelectorAll(".sale-line").forEach((row) => {
+          const lineCents = refreshLine(row);
+          if (lineCents !== null) {
+            totalCents += lineCents;
+          }
+        });
+        totalDisplay.textContent = `¥ ${formatCents(totalCents)}`;
+      }
+
+      function refreshMinPrice(row) {
+        const select = row.querySelector(".product-select");
+        const hint = row.querySelector(".line-hint");
+        const selected = select.options[select.selectedIndex];
+        const minPrice = selected ? selected.dataset.min : "";
+        hint.textContent = minPrice ? `最低售价 ¥${minPrice}` : "选择产品后显示最低售价";
+      }
+
+      function refreshRemoveButtons() {
+        const rows = linesBody.querySelectorAll(".sale-line");
+        rows.forEach((row) => {
+          row.querySelector(".remove-line").disabled = rows.length <= 1;
+        });
+      }
+
+      addLineButton.addEventListener("click", () => {
+        const fragment = lineTemplate.content.cloneNode(true);
+        linesBody.appendChild(fragment);
+        const row = linesBody.lastElementChild;
+        refreshMinPrice(row);
+        refreshLine(row);
+        refreshRemoveButtons();
+      });
+
+      linesBody.addEventListener("click", (event) => {
+        const removeButton = event.target.closest(".remove-line");
+        if (!removeButton) {
+          return;
+        }
+        const rows = linesBody.querySelectorAll(".sale-line");
+        if (rows.length > 1) {
+          removeButton.closest(".sale-line").remove();
+          refreshRemoveButtons();
+          refreshTotal();
+        }
+      });
+
+      linesBody.addEventListener("input", (event) => {
+        const row = event.target.closest(".sale-line");
+        if (row) {
+          refreshTotal();
+        }
+      });
+
+      linesBody.addEventListener("change", (event) => {
+        const row = event.target.closest(".sale-line");
+        if (!row) {
+          return;
+        }
+        if (event.target.classList.contains("product-select")) {
+          refreshMinPrice(row);
+        }
+        refreshTotal();
+      });
+
+      linesBody.querySelectorAll(".sale-line").forEach((row) => {
+        refreshMinPrice(row);
+      });
+      refreshRemoveButtons();
+      refreshTotal();
+    })();
+  </script>
+{% endblock %}

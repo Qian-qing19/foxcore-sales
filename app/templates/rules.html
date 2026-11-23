@@ -1,0 +1,281 @@
+{% extends "base.html" %}
+
+{% block title %}佣金规则 · Foxcore{% endblock %}
+
+{% block content %}
+  <style>
+    .rules-heading { display: flex; justify-content: space-between; gap: 24px; align-items: end; }
+    .rules-panel { margin-bottom: 24px; padding: 26px; background: var(--surface); border: 1px solid var(--line); border-radius: 16px; box-shadow: 0 18px 50px rgba(31, 41, 51, 0.06); }
+    .panel-heading { display: flex; justify-content: space-between; gap: 16px; align-items: baseline; margin-bottom: 18px; }
+    .panel-heading p { margin: 0; }
+    .form-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+    .field { display: grid; gap: 7px; }
+    .field label, .target-title { color: #344054; font-size: 14px; font-weight: 700; }
+    .field input, .field select { width: 100%; min-height: 42px; padding: 9px 11px; color: var(--ink); background: #fff; border: 1px solid var(--line); border-radius: 8px; font: inherit; }
+    .field input:focus, .field select:focus { outline: 3px solid rgba(20, 108, 90, 0.14); border-color: var(--brand); }
+    .field-hint { color: var(--muted); font-size: 12px; line-height: 1.5; }
+    .target-panel { margin-top: 18px; padding: 16px; background: var(--surface-soft); border: 1px solid var(--line); border-radius: 12px; }
+    .target-panel[hidden] { display: none; }
+    .checkbox-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px 14px; max-height: 300px; margin-top: 12px; overflow-y: auto; }
+    .checkbox-item { display: flex; align-items: flex-start; gap: 8px; padding: 7px 8px; background: #fff; border: 1px solid var(--line); border-radius: 8px; font-size: 13px; line-height: 1.4; }
+    .checkbox-item input { margin-top: 3px; accent-color: var(--brand); }
+    .form-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 18px; }
+    .button { display: inline-flex; align-items: center; justify-content: center; min-height: 38px; padding: 8px 14px; color: #fff; background: var(--brand); border: 1px solid var(--brand); border-radius: 8px; cursor: pointer; font: inherit; font-size: 14px; font-weight: 700; text-decoration: none; }
+    .button:hover { color: #fff; background: var(--brand-dark); border-color: var(--brand-dark); }
+    .button-secondary { color: var(--brand-dark); background: #fff; border-color: var(--line); }
+    .button-secondary:hover { color: var(--brand-dark); background: #edf7f4; border-color: var(--brand); }
+    .button-warning { color: #7a4d00; background: #fff8e8; border-color: #f2cf88; }
+    .button-warning:hover { color: #603c00; background: #ffefc5; border-color: #dba93d; }
+    .copy-note { margin-bottom: 16px; padding: 11px 13px; color: #075e46; background: #e8f7f1; border: 1px solid #bfe7d8; border-radius: 9px; }
+    .table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; }
+    .rules-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    .rules-table th, .rules-table td { padding: 12px 14px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: middle; }
+    .rules-table th { color: var(--muted); background: var(--surface-soft); font-size: 12px; letter-spacing: 0.04em; white-space: nowrap; }
+    .rules-table td { white-space: nowrap; }
+    .rules-table td.scope-cell { min-width: 220px; max-width: 380px; white-space: normal; }
+    .rules-table tr:last-child td { border-bottom: 0; }
+    .table-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+    .inline-form { display: inline; margin: 0; }
+    .badge { display: inline-block; padding: 4px 9px; border-radius: 999px; font-size: 12px; font-weight: 800; }
+    .badge-draft { color: #475467; background: #f2f4f7; }
+    .badge-active { color: #075e46; background: #e8f7f1; }
+    .badge-disabled { color: #8a4b08; background: #fff2df; }
+    .empty-state { padding: 22px; color: var(--muted); background: var(--surface-soft); border-radius: 10px; text-align: center; }
+    @media (max-width: 980px) {
+      .rules-heading { align-items: flex-start; flex-direction: column; }
+      .form-grid { grid-template-columns: 1fr 1fr; }
+      .checkbox-grid { grid-template-columns: 1fr 1fr; }
+    }
+    @media (max-width: 620px) {
+      .form-grid, .checkbox-grid { grid-template-columns: 1fr; }
+      .rules-panel { padding: 20px 16px; }
+    }
+  </style>
+
+  <section class="page-heading rules-heading">
+    <div>
+      <p class="eyebrow">COMMISSION RULES</p>
+      <h1>佣金规则</h1>
+      <p class="muted">规则按代码维护版本；草稿发布后生效，历史版本只读保留，不提供编辑入口。</p>
+    </div>
+  </section>
+
+  <section class="rules-panel">
+    <div class="panel-heading">
+      <div>
+        <h2>新建规则 / 新版本</h2>
+        <p class="muted">新提交固定为草稿。代码已存在时，系统自动使用该代码下一个版本号。</p>
+      </div>
+    </div>
+
+    {% if copy_source %}
+      <div class="copy-note">
+        正在基于 {{ copy_source['rule_code'] }} v{{ copy_source['version_no'] }}（{{ copy_source['status'] }}）复制业务字段；新版本会生成新的规则编号。
+      </div>
+    {% endif %}
+
+    <form method="post" action="{{ url_for('rules.index') }}" id="rule-form">
+      <input type="hidden" name="action" value="create">
+      <div class="form-grid">
+        <div class="field">
+          <label for="rule_code">规则代码</label>
+          <input id="rule_code" name="rule_code" value="{{ form_values['rule_code'] }}" maxlength="80" required>
+          <span class="field-hint">相同代码再次保存时会自动创建新版本。</span>
+        </div>
+        <div class="field">
+          <label for="dimension">维度</label>
+          <select id="dimension" name="dimension">
+            {% for option in dimension_options %}
+              <option value="{{ option['value'] }}" {% if form_values['dimension'] == option['value'] %}selected{% endif %}>{{ option['label'] }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="field">
+          <label>提交后状态</label>
+          <input value="草稿" disabled>
+          <span class="field-hint">只能通过列表中的“发布”按钮变为有效。</span>
+        </div>
+      </div>
+
+      <div class="target-panel" data-dimension-panel="PRODUCT" {% if form_values['dimension'] != 'PRODUCT' %}hidden{% endif %}>
+        <div class="target-title">产品目标（至少选择 1 个）</div>
+        <div class="checkbox-grid">
+          {% for product in products %}
+            <label class="checkbox-item" for="product_{{ product['product_id'] }}">
+              <input id="product_{{ product['product_id'] }}" type="checkbox" name="product_ids" value="{{ product['product_id'] }}" {% if (product['product_id'] | string) in form_values['product_ids'] %}checked{% endif %}>
+              <span>{{ product['product_code'] }} · {{ product['name'] }}</span>
+            </label>
+          {% else %}
+            <div class="empty-state">暂无产品</div>
+          {% endfor %}
+        </div>
+      </div>
+
+      <div class="target-panel" data-dimension-panel="SALESPERSON" {% if form_values['dimension'] != 'SALESPERSON' %}hidden{% endif %}>
+        <div class="target-title">销售顾问目标（至少选择 1 个）</div>
+        <div class="checkbox-grid">
+          {% for salesperson in salespersons %}
+            <label class="checkbox-item" for="salesperson_{{ salesperson['salesperson_id'] }}">
+              <input id="salesperson_{{ salesperson['salesperson_id'] }}" type="checkbox" name="salesperson_ids" value="{{ salesperson['salesperson_id'] }}" {% if (salesperson['salesperson_id'] | string) in form_values['salesperson_ids'] %}checked{% endif %}>
+              <span>{{ salesperson['emp_code'] }} · {{ salesperson['name'] }}</span>
+            </label>
+          {% else %}
+            <div class="empty-state">暂无销售顾问</div>
+          {% endfor %}
+        </div>
+      </div>
+
+      <div class="target-panel" data-dimension-panel="EVENT_TYPE" {% if form_values['dimension'] != 'EVENT_TYPE' %}hidden{% endif %}>
+        <div class="field">
+          <label for="event_type_value">活动类型</label>
+          <select id="event_type_value" name="event_type_value">
+            <option value="">请选择活动类型</option>
+            {% for event_type in event_types %}
+              <option value="{{ event_type }}" {% if form_values['event_type_value'] == event_type %}selected{% endif %}>{{ event_type }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+
+      <div class="target-panel" data-dimension-panel="GLOBAL" {% if form_values['dimension'] != 'GLOBAL' %}hidden{% endif %}>
+        <div class="target-title">全局规则</div>
+        <p class="field-hint">全局规则不关联产品、销售顾问或活动类型，适用于所有符合条件的销售。</p>
+      </div>
+
+      <div class="form-grid" style="margin-top: 18px;">
+        <div class="field">
+          <label for="calc_method">计算方式</label>
+          <select id="calc_method" name="calc_method">
+            {% for method in calc_methods %}
+              <option value="{{ method }}" {% if form_values['calc_method'] == method %}selected{% endif %}>{{ method }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="field" data-calc-panel="按比例" {% if form_values['calc_method'] != '按比例' %}hidden{% endif %}>
+          <label for="rate">费率（%）</label>
+          <input id="rate" name="rate" type="number" min="0" max="100" step="0.0001" value="{{ form_values['rate'] }}">
+          <span class="field-hint">输入 5 表示 5%，系统按比例存为 0.05。</span>
+        </div>
+        <div class="field" data-calc-panel="按件固定额" {% if form_values['calc_method'] != '按件固定额' %}hidden{% endif %}>
+          <label for="fixed_amount">固定额（元/件）</label>
+          <input id="fixed_amount" name="fixed_amount" type="number" min="0" step="0.01" value="{{ form_values['fixed_amount'] }}">
+          <span class="field-hint">输入 1.50 元，系统按每件 150 分存储。</span>
+        </div>
+        <div class="field">
+          <label for="priority">优先级</label>
+          <input id="priority" name="priority" type="number" step="1" value="{{ form_values['priority'] }}">
+        </div>
+        <div class="field">
+          <label for="effective_from">生效开始日期</label>
+          <input id="effective_from" name="effective_from" type="date" value="{{ form_values['effective_from'] }}" required>
+        </div>
+        <div class="field">
+          <label for="effective_to">生效结束日期</label>
+          <input id="effective_to" name="effective_to" type="date" value="{{ form_values['effective_to'] }}">
+          <span class="field-hint">可留空，表示长期有效；留空入库为 NULL。</span>
+        </div>
+      </div>
+
+      <div class="form-actions">
+        <button class="button" type="submit">保存为草稿</button>
+      </div>
+    </form>
+  </section>
+
+  <section class="rules-panel">
+    <div class="panel-heading">
+      <div>
+        <h2>规则版本列表</h2>
+        <p class="muted">共 {{ rules | length }} 条</p>
+      </div>
+    </div>
+
+    {% if rules %}
+      <div class="table-wrap">
+        <table class="rules-table">
+          <thead>
+            <tr>
+              <th>规则代码</th>
+              <th>版本</th>
+              <th>维度</th>
+              <th>适用范围</th>
+              <th>计算方式</th>
+              <th>值</th>
+              <th>优先级</th>
+              <th>生效期</th>
+              <th>状态</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for rule in rules %}
+              <tr>
+                <td>{{ rule['rule_code'] }}</td>
+                <td>v{{ rule['version_no'] }}</td>
+                <td>{{ rule['dimension_label'] }}</td>
+                <td class="scope-cell">{{ rule['scope_text'] }}</td>
+                <td>{{ rule['calc_method'] }}</td>
+                <td>{{ rule['value_text'] }}</td>
+                <td>{{ rule['priority'] }}</td>
+                <td>{{ rule['effective_from'] }} 至 {{ rule['effective_to'] or '长期' }}</td>
+                <td>
+                  {% if rule['status'] == '草稿' %}
+                    <span class="badge badge-draft">草稿</span>
+                  {% elif rule['status'] == '有效' %}
+                    <span class="badge badge-active">有效</span>
+                  {% else %}
+                    <span class="badge badge-disabled">停用</span>
+                  {% endif %}
+                </td>
+                <td>
+                  <div class="table-actions">
+                    {% if rule['status'] == '草稿' %}
+                      <form class="inline-form" method="post" action="{{ url_for('rules.index') }}">
+                        <input type="hidden" name="action" value="publish">
+                        <input type="hidden" name="rule_id" value="{{ rule['rule_id'] }}">
+                        <button class="button" type="submit">发布</button>
+                      </form>
+                    {% elif rule['status'] == '有效' %}
+                      <form class="inline-form" method="post" action="{{ url_for('rules.index') }}">
+                        <input type="hidden" name="action" value="disable">
+                        <input type="hidden" name="rule_id" value="{{ rule['rule_id'] }}">
+                        <button class="button button-warning" type="submit">停用</button>
+                      </form>
+                    {% endif %}
+                    <a class="button button-secondary" href="{{ url_for('rules.index', new_version=rule['rule_id']) }}">新版本</a>
+                  </div>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <div class="empty-state">暂无佣金规则</div>
+    {% endif %}
+  </section>
+
+  <script>
+    (function () {
+      const dimensionSelect = document.getElementById('dimension');
+      const calcSelect = document.getElementById('calc_method');
+
+      function toggleDimensionPanels() {
+        document.querySelectorAll('[data-dimension-panel]').forEach(function (panel) {
+          panel.hidden = panel.dataset.dimensionPanel !== dimensionSelect.value;
+        });
+      }
+
+      function toggleCalcPanels() {
+        document.querySelectorAll('[data-calc-panel]').forEach(function (panel) {
+          panel.hidden = panel.dataset.calcPanel !== calcSelect.value;
+        });
+      }
+
+      dimensionSelect.addEventListener('change', toggleDimensionPanels);
+      calcSelect.addEventListener('change', toggleCalcPanels);
+      toggleDimensionPanels();
+      toggleCalcPanels();
+    })();
+  </script>
+{% endblock %}

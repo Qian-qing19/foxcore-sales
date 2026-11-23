@@ -1,0 +1,196 @@
+{% extends "base.html" %}
+
+{% block title %}销售流水 · Foxcore{% endblock %}
+
+{% block content %}
+  <style>
+    .sales-heading { display: flex; justify-content: space-between; gap: 24px; align-items: end; margin-bottom: 24px; }
+    .sales-panel { padding: 24px; background: var(--surface); border: 1px solid var(--line); border-radius: 16px; box-shadow: 0 18px 50px rgba(31, 41, 51, 0.06); }
+    .filter-form { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 14px; align-items: end; margin-bottom: 22px; padding-bottom: 22px; border-bottom: 1px solid var(--line); }
+    .filter-field { display: grid; gap: 6px; min-width: 0; }
+    .filter-field label { color: var(--muted); font-size: 12px; font-weight: 800; }
+    .filter-field input, .filter-field select { width: 100%; min-height: 42px; padding: 9px 10px; color: var(--ink); background: #fff; border: 1px solid var(--line); border-radius: 8px; font: inherit; }
+    .filter-field input:focus, .filter-field select:focus { outline: 3px solid rgba(20, 108, 90, 0.14); border-color: var(--brand); }
+    .filter-actions { display: flex; flex-wrap: wrap; gap: 8px; grid-column: span 2; }
+    .button { display: inline-flex; align-items: center; justify-content: center; min-height: 40px; padding: 9px 15px; color: #fff; background: var(--brand); border: 1px solid var(--brand); border-radius: 8px; cursor: pointer; font: inherit; font-size: 14px; font-weight: 800; }
+    .button:hover { color: #fff; background: var(--brand-dark); border-color: var(--brand-dark); }
+    .button-secondary { color: var(--brand-dark); background: #fff; border-color: var(--line); }
+    .button-secondary:hover { color: var(--brand-dark); background: #edf7f4; border-color: var(--brand); }
+    .button-danger { color: var(--danger-text); background: #fff; border-color: #ffccc7; }
+    .button-danger:hover { color: #fff; background: #a8071a; border-color: #a8071a; }
+    .result-summary { display: flex; justify-content: space-between; gap: 16px; align-items: baseline; margin-bottom: 14px; }
+    .result-summary p { margin: 0; color: var(--muted); font-size: 14px; }
+    .table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; }
+    .sales-table { width: 100%; min-width: 1040px; border-collapse: collapse; }
+    .sales-table th, .sales-table td { padding: 12px 13px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: middle; }
+    .sales-table th { color: var(--muted); background: var(--surface-soft); font-size: 12px; letter-spacing: 0.03em; white-space: nowrap; }
+    .sales-table tbody tr:hover { background: #fbfcfd; }
+    .sales-table tr:last-child td { border-bottom: 0; }
+    .sale-no { color: var(--brand-dark); font-weight: 800; white-space: nowrap; }
+    .amount { font-variant-numeric: tabular-nums; font-weight: 800; white-space: nowrap; }
+    .event-cell { min-width: 150px; }
+    .event-name, .booth-name { display: block; }
+    .booth-name { margin-top: 3px; color: var(--muted); font-size: 12px; }
+    .badge { display: inline-block; padding: 4px 9px; border-radius: 999px; font-size: 12px; font-weight: 800; white-space: nowrap; }
+    .badge-registered { color: #175cd3; background: #eff8ff; }
+    .badge-pending { color: #8a4b08; background: #fff2df; }
+    .badge-commissioned { color: #075e46; background: #e8f7f1; }
+    .badge-void { color: #8f1d2c; background: #fff1f0; }
+    .table-actions { display: flex; flex-wrap: wrap; gap: 8px; white-space: nowrap; }
+    .table-actions .button { min-height: 32px; padding: 5px 10px; font-size: 12px; }
+    .empty-state { padding: 34px 18px; color: var(--muted); text-align: center; }
+    .pagination { display: flex; flex-wrap: wrap; justify-content: center; gap: 7px; margin-top: 20px; }
+    .pagination a, .pagination span { display: inline-flex; align-items: center; justify-content: center; min-width: 36px; height: 36px; padding: 0 10px; color: var(--brand-dark); background: #fff; border: 1px solid var(--line); border-radius: 8px; font-size: 13px; font-weight: 700; }
+    .pagination a:hover { background: #edf7f4; border-color: var(--brand); }
+    .pagination .current { color: #fff; background: var(--brand); border-color: var(--brand); }
+    .pagination .disabled { color: #98a2b3; background: #f7f8fa; }
+    @media (max-width: 1000px) { .filter-form { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+    @media (max-width: 640px) { .sales-heading { align-items: flex-start; flex-direction: column; } .sales-panel { padding: 18px; } .filter-form { grid-template-columns: 1fr; } .filter-actions { grid-column: auto; } }
+  </style>
+
+  <section class="sales-heading">
+    <div>
+      <p class="eyebrow">SALES LEDGER</p>
+      <h1>{{ '销售流水' if is_partner else '我的流水' }}</h1>
+      <p class="muted">按时间倒序查看销售单、金额与佣金合计。</p>
+    </div>
+    {% if g.user['role'] == '销售顾问' %}
+      <a class="button" href="{{ url_for('sales.new_sale') }}">登记销售</a>
+    {% endif %}
+  </section>
+
+  <section class="sales-panel">
+    <form class="filter-form" method="get" action="{{ url_for('sales.list_sales') }}">
+      <div class="filter-field">
+        <label for="date_from">起始日期</label>
+        <input id="date_from" name="date_from" type="date" value="{{ filters['date_from'] }}">
+      </div>
+      <div class="filter-field">
+        <label for="date_to">结束日期</label>
+        <input id="date_to" name="date_to" type="date" value="{{ filters['date_to'] }}">
+      </div>
+      <div class="filter-field">
+        <label for="event_id">活动</label>
+        <select id="event_id" name="event_id">
+          <option value="">全部活动</option>
+          {% for event in events %}
+            <option value="{{ event['event_id'] }}" {{ 'selected' if filters['event_id'] == event['event_id']|string else '' }}>{{ event['event_name'] }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      {% if is_partner %}
+        <div class="filter-field">
+          <label for="salesperson_id">销售顾问</label>
+          <select id="salesperson_id" name="salesperson_id">
+            <option value="">全部顾问</option>
+            {% for salesperson in salespersons %}
+              <option value="{{ salesperson['salesperson_id'] }}" {{ 'selected' if filters['salesperson_id'] == salesperson['salesperson_id']|string else '' }}>{{ salesperson['emp_code'] }} {{ salesperson['name'] }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      {% endif %}
+      <div class="filter-field">
+        <label for="status">状态</label>
+        <select id="status" name="status">
+          <option value="">全部状态</option>
+          {% for status in status_options %}
+            <option value="{{ status }}" {{ 'selected' if filters['status'] == status else '' }}>{{ status }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="filter-field">
+        <label for="sale_no">单号</label>
+        <input id="sale_no" name="sale_no" type="text" value="{{ filters['sale_no'] }}" placeholder="例如 S123">
+      </div>
+      <div class="filter-actions">
+        <button class="button" type="submit">筛选</button>
+        <a class="button button-secondary" href="{{ url_for('sales.list_sales') }}">重置</a>
+      </div>
+    </form>
+
+    <div class="result-summary">
+      <p data-total-count="{{ total }}">共 {{ total }} 条，第 {{ page }} / {{ total_pages }} 页，每页 {{ page_size }} 条</p>
+    </div>
+
+    {% if sales %}
+      <div class="table-wrap">
+        <table class="sales-table">
+          <thead>
+            <tr>
+              <th>单号</th>
+              <th>时间</th>
+              <th>顾问</th>
+              <th>活动 / 摊位</th>
+              <th>件数</th>
+              <th>金额</th>
+              <th>佣金合计</th>
+              <th>状态</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for sale in sales %}
+              <tr data-sale-id="{{ sale['sale_id'] }}" data-commission-cents="{{ sale['commission_cents'] }}">
+                <td><a class="sale-no" href="{{ url_for('sales.sale_detail', sale_id=sale['sale_id']) }}">S{{ sale['sale_id'] }}</a></td>
+                <td>{{ sale['sale_time'] }}</td>
+                <td>{{ sale['salesperson_name'] }}</td>
+                <td class="event-cell">
+                  <span class="event-name">{{ sale['event_name'] }}</span>
+                  <span class="booth-name">{{ sale['booth_code'] }}</span>
+                </td>
+                <td>{{ sale['item_count'] }}</td>
+                <td class="amount">¥ {{ sale['total_cents'] | yuan }}</td>
+                <td class="amount">¥ {{ sale['commission_cents'] | yuan }}</td>
+                <td>
+                  {% if sale['status'] == '已登记' %}
+                    <span class="badge badge-registered">已登记</span>
+                  {% elif sale['status'] == '待计佣' %}
+                    <span class="badge badge-pending">待计佣</span>
+                  {% elif sale['status'] == '已计佣' %}
+                    <span class="badge badge-commissioned">已计佣</span>
+                  {% else %}
+                    <span class="badge badge-void">作废</span>
+                  {% endif %}
+                </td>
+                <td>
+                  <div class="table-actions">
+                    <a class="button button-secondary" href="{{ url_for('sales.sale_detail', sale_id=sale['sale_id']) }}">详情</a>
+                    {% if is_partner and sale['status'] in ('已登记', '待计佣', '已计佣') %}
+                      <a class="button button-danger" href="{{ url_for('sales.sale_detail', sale_id=sale['sale_id']) }}#void-sale">作废</a>
+                    {% endif %}
+                  </div>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <div class="empty-state">没有符合筛选条件的销售流水。</div>
+    {% endif %}
+
+    {% if total_pages > 1 %}
+      <nav class="pagination" aria-label="销售流水分页">
+        {% if page > 1 %}
+          <a href="{{ url_for('sales.list_sales', page=page-1, date_from=filters['date_from'], date_to=filters['date_to'], event_id=filters['event_id'], salesperson_id=filters['salesperson_id'], status=filters['status'], sale_no=filters['sale_no']) }}">上一页</a>
+        {% else %}
+          <span class="disabled">上一页</span>
+        {% endif %}
+
+        {% for page_number in range(1, total_pages + 1) %}
+          {% if page_number == page %}
+            <span class="current" aria-current="page">{{ page_number }}</span>
+          {% else %}
+            <a href="{{ url_for('sales.list_sales', page=page_number, date_from=filters['date_from'], date_to=filters['date_to'], event_id=filters['event_id'], salesperson_id=filters['salesperson_id'], status=filters['status'], sale_no=filters['sale_no']) }}">{{ page_number }}</a>
+          {% endif %}
+        {% endfor %}
+
+        {% if page < total_pages %}
+          <a href="{{ url_for('sales.list_sales', page=page+1, date_from=filters['date_from'], date_to=filters['date_to'], event_id=filters['event_id'], salesperson_id=filters['salesperson_id'], status=filters['status'], sale_no=filters['sale_no']) }}">下一页</a>
+        {% else %}
+          <span class="disabled">下一页</span>
+        {% endif %}
+      </nav>
+    {% endif %}
+  </section>
+{% endblock %}

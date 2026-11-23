@@ -1,0 +1,136 @@
+{% extends "base.html" %}
+
+{% block title %}销售多维报表 · Foxcore{% endblock %}
+
+{% block content %}
+  <style>
+    .reports-heading { display: flex; justify-content: space-between; gap: 24px; align-items: end; margin-bottom: 24px; }
+    .reports-panel { padding: 24px; background: var(--surface); border: 1px solid var(--line); border-radius: 16px; box-shadow: 0 18px 50px rgba(31, 41, 51, 0.06); }
+    .report-filter { display: grid; grid-template-columns: 1.2fr 1fr 1fr auto; gap: 14px; align-items: end; margin-bottom: 20px; padding-bottom: 20px; border-bottom: 1px solid var(--line); }
+    .filter-field { display: grid; gap: 6px; min-width: 0; }
+    .filter-field label { color: var(--muted); font-size: 12px; font-weight: 800; }
+    .filter-field input, .filter-field select { width: 100%; min-height: 42px; padding: 9px 10px; color: var(--ink); background: #fff; border: 1px solid var(--line); border-radius: 8px; font: inherit; }
+    .filter-field input:focus, .filter-field select:focus { outline: 3px solid rgba(20, 108, 90, 0.14); border-color: var(--brand); }
+    .filter-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+    .button { display: inline-flex; align-items: center; justify-content: center; min-height: 40px; padding: 9px 15px; color: #fff; background: var(--brand); border: 1px solid var(--brand); border-radius: 8px; cursor: pointer; font: inherit; font-size: 14px; font-weight: 800; }
+    .button:hover { color: #fff; background: var(--brand-dark); border-color: var(--brand-dark); }
+    .button-secondary { color: var(--brand-dark); background: #fff; border-color: var(--line); }
+    .button-secondary:hover { color: var(--brand-dark); background: #edf7f4; border-color: var(--brand); }
+    .report-meta { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 10px 18px; margin: 0 0 18px; color: var(--muted); font-size: 13px; }
+    .metric-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 20px; }
+    .metric-card { padding: 16px; background: linear-gradient(145deg, #f8fbfa, #fff); border: 1px solid var(--line); border-radius: 12px; }
+    .metric-label { margin: 0 0 7px; color: var(--muted); font-size: 12px; font-weight: 800; letter-spacing: 0.04em; }
+    .metric-value { margin: 0; color: var(--brand-dark); font-size: 24px; font-weight: 900; font-variant-numeric: tabular-nums; }
+    .metric-unit { margin-left: 4px; color: var(--muted); font-size: 12px; font-weight: 700; }
+    .table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; }
+    .reports-table { width: 100%; min-width: 850px; border-collapse: collapse; }
+    .reports-table th, .reports-table td { padding: 12px 13px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: middle; }
+    .reports-table thead th { color: var(--muted); background: var(--surface-soft); font-size: 12px; letter-spacing: 0.03em; white-space: nowrap; }
+    .reports-table tbody tr:hover { background: #fbfcfd; }
+    .reports-table tbody tr:last-child td { border-bottom: 0; }
+    .reports-table tfoot th, .reports-table tfoot td { background: #f5faf8; border-top: 1px solid var(--line); font-weight: 800; }
+    .amount { font-variant-numeric: tabular-nums; font-weight: 800; white-space: nowrap; }
+    .empty-state { padding: 38px 18px; color: var(--muted); background: var(--surface-soft); border: 1px dashed var(--line); border-radius: 12px; text-align: center; }
+    @media (max-width: 900px) { .report-filter { grid-template-columns: repeat(2, minmax(0, 1fr)); } .metric-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    @media (max-width: 620px) { .reports-heading { align-items: flex-start; flex-direction: column; } .reports-panel { padding: 18px; } .report-filter, .metric-grid { grid-template-columns: 1fr; } }
+  </style>
+
+  <section class="reports-heading">
+    <div>
+      <p class="eyebrow">D7 · 多维报表</p>
+      <h1>销售多维报表</h1>
+      <p class="muted">按产品、活动、摊位或销售顾问查看数量、净销售额、平均成交价与佣金。</p>
+    </div>
+  </section>
+
+  <section class="reports-panel" data-report-row-count="{{ row_count }}">
+    <form class="report-filter" method="get" action="{{ url_for('reports.index') }}" data-dimension="{{ filters['dimension'] }}" data-start-date="{{ filters['start_date'] }}" data-end-date="{{ filters['end_date'] }}">
+      <div class="filter-field">
+        <label for="dimension">统计维度</label>
+        <select id="dimension" name="dimension">
+          {% for value, label in dimension_options %}
+            <option value="{{ value }}" {{ 'selected' if filters['dimension'] == value else '' }}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="filter-field">
+        <label for="start_date">开始日期</label>
+        <input id="start_date" name="start_date" type="date" value="{{ filters['start_date'] }}" required>
+      </div>
+      <div class="filter-field">
+        <label for="end_date">结束日期</label>
+        <input id="end_date" name="end_date" type="date" value="{{ filters['end_date'] }}" required>
+      </div>
+      <div class="filter-actions">
+        <button class="button" type="submit">查询</button>
+        <a class="button button-secondary" href="{{ url_for('reports.export', dimension=filters['dimension'], start_date=filters['start_date'], end_date=filters['end_date']) }}">导出 CSV</a>
+      </div>
+    </form>
+
+    <div class="report-meta">
+      <span>统计维度：{{ dimension_label }}</span>
+      <span data-data-as-of>数据截至 {{ data_as_of }}</span>
+    </div>
+
+    {% if rows %}
+      <div class="metric-grid">
+        <article class="metric-card">
+          <p class="metric-label">销售数量</p>
+          <p class="metric-value" data-total-quantity="{{ totals['quantity'] }}">{{ totals['quantity'] }}<span class="metric-unit">件</span></p>
+        </article>
+        <article class="metric-card">
+          <p class="metric-label">净销售额</p>
+          <p class="metric-value" data-total-net-sales-cents="{{ totals['net_sales_cents'] }}">¥ {{ totals['net_sales_cents'] | yuan }}</p>
+        </article>
+        <article class="metric-card">
+          <p class="metric-label">平均成交价</p>
+          <p class="metric-value" data-total-avg-unit-price-yuan="{{ '%.2f' | format(totals['avg_unit_price_yuan']) }}">¥ {{ '%.2f' | format(totals['avg_unit_price_yuan']) }}</p>
+        </article>
+        <article class="metric-card">
+          <p class="metric-label">佣金合计</p>
+          <p class="metric-value" data-total-commission-cents="{{ totals['commission_cents'] }}">¥ {{ totals['commission_cents'] | yuan }}</p>
+        </article>
+      </div>
+
+      <div class="table-wrap">
+        <table class="reports-table">
+          <thead>
+            <tr>
+              <th>编号</th>
+              <th>名称</th>
+              <th>补充信息</th>
+              <th>销售数量</th>
+              <th>净销售额（元）</th>
+              <th>平均成交价（元）</th>
+              <th>佣金合计（元）</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in rows %}
+              <tr data-report-row data-group-id="{{ row['group_id'] }}" data-quantity="{{ row['quantity'] }}" data-net-sales-cents="{{ row['net_sales_cents'] }}" data-commission-cents="{{ row['commission_cents'] }}">
+                <td>{{ row['code'] }}</td>
+                <td>{{ row['name'] }}</td>
+                <td>{{ row['detail'] or '-' }}</td>
+                <td>{{ row['quantity'] }}</td>
+                <td class="amount">{{ row['net_sales_cents'] | yuan }}</td>
+                <td class="amount">{{ '%.2f' | format(row['avg_unit_price_yuan']) }}</td>
+                <td class="amount">{{ row['commission_cents'] | yuan }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+          <tfoot>
+            <tr>
+              <th colspan="3">合计</th>
+              <td>{{ totals['quantity'] }}</td>
+              <td class="amount">{{ totals['net_sales_cents'] | yuan }}</td>
+              <td class="amount">{{ '%.2f' | format(totals['avg_unit_price_yuan']) }}</td>
+              <td class="amount">{{ totals['commission_cents'] | yuan }}</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    {% else %}
+      <div class="empty-state">该条件下没有数据</div>
+    {% endif %}
+  </section>
+{% endblock %}
